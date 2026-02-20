@@ -785,7 +785,7 @@ export default function App() {
               setErr("");
               setForm({ ...form, first_name: e.target.value });
             }}
-            placeholder="Troy"
+            placeholder=""
             autoComplete="given-name"
           />
         </div>
@@ -800,7 +800,7 @@ export default function App() {
               setErr("");
               setForm({ ...form, last_name: e.target.value });
             }}
-            placeholder="McQueen"
+            placeholder=""
             autoComplete="family-name"
           />
         </div>
