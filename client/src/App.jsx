@@ -91,7 +91,7 @@ export default function App() {
   const [form, setForm] = useState(defaultForm);
   const [err, setErr] = useState("");
   const [submitResult, setSubmitResult] = useState(null);
-  const [qrs, setQrs] = useState({ listing: "", feature: "", similar: "" });
+  const [qrs, setQrs] = useState({ listing: "", feature: "", similar: "", bookShowing: "" });
   const [queueCount, setQueueCount] = useState(0);
   const [syncBanner, setSyncBanner] = useState("");
 
@@ -134,10 +134,11 @@ export default function App() {
     );
   }, [cfg]);
 
-  const contactStepHasMinimumInput =
-  form.first_name.trim() &&
-  form.last_name.trim() &&
-  (form.email.trim() || onlyDigits(form.phone).length > 0);
+    const contactStepHasMinimumInput = Boolean(
+        form.first_name.trim() &&
+        form.last_name.trim() &&
+        (form.email.trim() || onlyDigits(form.phone).length > 0)
+    );
 
   async function refreshQueueCount() {
     setQueueCount(await getQueueCount());
@@ -176,7 +177,7 @@ export default function App() {
     setStep(1);
     setErr("");
     setSubmitResult(null);
-    setQrs({ listing: "", feature: "", similar: "" });
+    setQrs({ listing: "", feature: "", similar: "", bookShowing: "" });
     setForm({
       ...defaultForm,
       price_range: cfg?.price_ranges?.[0]?.value || ""
@@ -219,41 +220,44 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!submitResult || !cfg) return;
+  if (!submitResult || !cfg) return;
 
-    (async () => {
-      const [listing, feature, similar] = await Promise.all([
-        cfg.listing_url ? QRCode.toDataURL(cfg.listing_url, { width: 200, margin: 1 }) : "",
-        cfg.feature_sheet_url ? QRCode.toDataURL(cfg.feature_sheet_url, { width: 200, margin: 1 }) : "",
-        cfg.similar_homes_url ? QRCode.toDataURL(cfg.similar_homes_url, { width: 200, margin: 1 }) : ""
-      ]);
+  (async () => {
+    const [listing, feature, similar, bookShowing] = await Promise.all([
+      cfg.listing_url ? QRCode.toDataURL(cfg.listing_url, { width: 200, margin: 1 }) : "",
+      cfg.feature_sheet_url ? QRCode.toDataURL(cfg.feature_sheet_url, { width: 200, margin: 1 }) : "",
+      cfg.similar_homes_url ? QRCode.toDataURL(cfg.similar_homes_url, { width: 200, margin: 1 }) : "",
+      cfg.book_showing_url ? QRCode.toDataURL(cfg.book_showing_url, { width: 200, margin: 1 }) : ""
+    ]);
 
-      setQrs({ listing, feature, similar });
-    })();
-  }, [submitResult, cfg]);
+    setQrs({ listing, feature, similar, bookShowing });
+  })();
+}, [submitResult, cfg]);
 
   // Auto-reset thank-you screen after configured delay
     useEffect(() => {
-    clearTimeout(resetTimeoutRef.current);
-    clearInterval(resetIntervalRef.current);
+        clearTimeout(resetTimeoutRef.current);
+        clearInterval(resetIntervalRef.current);
 
-    if (step !== 5) return;
+        if (step !== 5) return;
 
-    setAutoResetCountdown(AUTO_RESET_SECONDS);
+        const resetSeconds = Number(cfg?.kiosk_reset_seconds || AUTO_RESET_SECONDS);
 
-    resetIntervalRef.current = setInterval(() => {
-      setAutoResetCountdown((prev) => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
+        setAutoResetCountdown(resetSeconds);
 
-    resetTimeoutRef.current = setTimeout(() => {
-      resetKiosk();
-    }, AUTO_RESET_SECONDS * 1000);
+        resetIntervalRef.current = setInterval(() => {
+            setAutoResetCountdown((prev) => (prev > 0 ? prev - 1 : 0));
+        }, 1000);
 
-    return () => {
-      clearTimeout(resetTimeoutRef.current);
-      clearInterval(resetIntervalRef.current);
-    };
-  }, [step]);
+        resetTimeoutRef.current = setTimeout(() => {
+            resetKiosk();
+        }, resetSeconds * 1000);
+
+        return () => {
+            clearTimeout(resetTimeoutRef.current);
+            clearInterval(resetIntervalRef.current);
+        };
+        }, [step, cfg]);
 
   function validateContactStep() {
     const first = form.first_name.trim();
@@ -393,6 +397,11 @@ export default function App() {
         .split(",")
         .map((s) => s.trim())
         .filter(Boolean),
+    qr_listing_title: String(adminSettings.qr_listing_title || "Listing").trim() || "Listing",
+    qr_feature_title: String(adminSettings.qr_feature_title || "Feature Sheet").trim() || "Feature Sheet",
+    qr_similar_title: String(adminSettings.qr_similar_title || "Similar Homes").trim() || "Similar Homes",
+    qr_book_showing_title: String(adminSettings.qr_book_showing_title || "Book Showing").trim() || "Book Showing",
+    kiosk_reset_seconds: Number(adminSettings.kiosk_reset_seconds || 90),
       price_ranges: String(adminSettings.price_ranges_text || "")
         .split(",")
         .map((part) => part.trim())
@@ -520,6 +529,47 @@ export default function App() {
                 value={adminSettings?.welcome_message || ""}
                 onChange={(e) => setAdminSettings({ ...adminSettings, welcome_message: e.target.value })}
               />
+
+              <label>QR Title: Listing</label>
+                <input
+                value={adminSettings?.qr_listing_title || ""}
+                onChange={(e) => setAdminSettings({ ...adminSettings, qr_listing_title: e.target.value })}
+                />
+
+                <label>QR Title: Feature Sheet</label>
+                <input
+                value={adminSettings?.qr_feature_title || ""}
+                onChange={(e) => setAdminSettings({ ...adminSettings, qr_feature_title: e.target.value })}
+                />
+
+                <label>QR Title: Similar Homes</label>
+                <input
+                value={adminSettings?.qr_similar_title || ""}
+                onChange={(e) => setAdminSettings({ ...adminSettings, qr_similar_title: e.target.value })}
+                />
+
+                <label>QR Title: Book Showing</label>
+                <input
+                value={adminSettings?.qr_book_showing_title || ""}
+                onChange={(e) => setAdminSettings({ ...adminSettings, qr_book_showing_title: e.target.value })}
+                />
+
+                <label>Auto Reset Time (seconds)</label>
+                <input
+                type="number"
+                min="15"
+                max="300"
+                value={adminSettings?.kiosk_reset_seconds ?? 90}
+                onChange={(e) =>
+                    setAdminSettings({
+                    ...adminSettings,
+                    kiosk_reset_seconds: e.target.value
+                    })
+                }
+                />
+                <div className="small muted" style={{ marginTop: 4 }}>
+                Recommended: 90 seconds
+                </div>
 
               <label>Listing URL</label>
               <input
@@ -1006,30 +1056,43 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="qr-grid">
-                <div className="qr-card">
-                  <div className="qr-title">Listing</div>
-                  {qrs.listing ? <img src={qrs.listing} alt="Listing QR" /> : <div className="small">No URL</div>}
-                </div>
+              {(() => {
+                const qrCards = [
+                    {
+                    key: "listing",
+                    title: cfg.qr_listing_title || "Listing",
+                    img: qrs.listing
+                    },
+                    {
+                    key: "feature",
+                    title: cfg.qr_feature_title || "Feature Sheet",
+                    img: qrs.feature
+                    },
+                    {
+                    key: "similar",
+                    title: cfg.qr_similar_title || "Similar Homes",
+                    img: qrs.similar
+                    },
+                    {
+                    key: "bookShowing",
+                    title: cfg.qr_book_showing_title || "Book Showing",
+                    img: qrs.bookShowing
+                    }
+                ].filter((card) => !!card.img);
 
-                <div className="qr-card">
-                  <div className="qr-title">Feature Sheet</div>
-                  {qrs.feature ? (
-                    <img src={qrs.feature} alt="Feature Sheet QR" />
-                  ) : (
-                    <div className="small">No URL</div>
-                  )}
-                </div>
-
-                <div className="qr-card">
-                  <div className="qr-title">Similar Homes</div>
-                  {qrs.similar ? (
-                    <img src={qrs.similar} alt="Similar Homes QR" />
-                  ) : (
-                    <div className="small">No URL</div>
-                  )}
-                </div>
-              </div>
+                return qrCards.length > 0 ? (
+                    <div className="qr-grid">
+                    {qrCards.map((card) => (
+                        <div className="qr-card" key={card.key}>
+                        <div className="qr-title">{card.title}</div>
+                        <img src={card.img} alt={`${card.title} QR`} />
+                        </div>
+                    ))}
+                    </div>
+                ) : (
+                    <div className="small">No QR links are configured yet.</div>
+                );
+                })()}
 
               <div className="countdown-note">This screen will reset in {autoResetCountdown}s</div>
 

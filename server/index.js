@@ -18,8 +18,8 @@ const app = express();
 const PORT = Number(process.env.PORT || 8787);
 const ADMIN_PIN = String(process.env.ADMIN_PIN || "1234");
 
-// In-memory admin session tokens (MVP/dev only).
-// Visitor leads and settings persist in SQLite; admin tokens do not.
+// Lightweight in-memory admin tokens (dev/MVP)
+// Tokens reset on server restart.
 const adminTokens = new Set();
 
 app.use(cors());
@@ -42,16 +42,29 @@ function buildConfig() {
     brokerage_name: s.brokerage_name,
     property_address: s.property_address,
     welcome_message: s.welcome_message,
+
     listing_url: s.listing_url,
     feature_sheet_url: s.feature_sheet_url,
     similar_homes_url: s.similar_homes_url,
     book_showing_url: s.book_showing_url,
+
+    // QR titles
+    qr_listing_title: s.qr_listing_title || "Listing",
+    qr_feature_title: s.qr_feature_title || "Feature Sheet",
+    qr_similar_title: s.qr_similar_title || "Similar Homes",
+    qr_book_showing_title: s.qr_book_showing_title || "Book Showing",
+
+    // Reset timer
+    kiosk_reset_seconds: Number(s.kiosk_reset_seconds || 90),
+
     hero_image_url: s.hero_image_url,
     agent_photo_url: s.agent_photo_url,
     brand_color: s.brand_color,
     accent_color: s.accent_color,
+
     require_consent: s.require_consent === "1",
     ask_financing_question: s.ask_financing_question === "1",
+
     areas_options: parseJSON(s.areas_options_json, []),
     price_ranges: parseJSON(s.price_ranges_json, [])
   };
@@ -89,7 +102,7 @@ function digitsOnly(value = "") {
 
 function formatPhone10(value = "") {
   const d = digitsOnly(value);
-  if (d.length !== 10) return value;
+  if (d.length !== 10) return String(value || "").trim();
   return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
 }
 
@@ -219,22 +232,38 @@ app.get("/api/admin/settings", requireAdmin, (req, res) => {
 app.post("/api/admin/settings", requireAdmin, (req, res) => {
   const body = req.body || {};
 
+  let resetSeconds = Number(body.kiosk_reset_seconds || 90);
+  if (!Number.isFinite(resetSeconds)) resetSeconds = 90;
+  resetSeconds = Math.max(15, Math.min(300, Math.round(resetSeconds)));
+
   const patch = {
     brand_name: body.brand_name ?? "",
     agent_name: body.agent_name ?? "",
     brokerage_name: body.brokerage_name ?? "",
     property_address: body.property_address ?? "",
     welcome_message: body.welcome_message ?? "",
+
     listing_url: body.listing_url ?? "",
     feature_sheet_url: body.feature_sheet_url ?? "",
     similar_homes_url: body.similar_homes_url ?? "",
     book_showing_url: body.book_showing_url ?? "",
+
     hero_image_url: body.hero_image_url ?? "",
     agent_photo_url: body.agent_photo_url ?? "",
+
     brand_color: body.brand_color ?? "#0f172a",
     accent_color: body.accent_color ?? "#2563eb",
+
     require_consent: body.require_consent ? "1" : "0",
     ask_financing_question: body.ask_financing_question ? "1" : "0",
+
+    // New fields
+    qr_listing_title: String(body.qr_listing_title ?? "Listing"),
+    qr_feature_title: String(body.qr_feature_title ?? "Feature Sheet"),
+    qr_similar_title: String(body.qr_similar_title ?? "Similar Homes"),
+    qr_book_showing_title: String(body.qr_book_showing_title ?? "Book Showing"),
+    kiosk_reset_seconds: String(resetSeconds),
+
     areas_options_json: JSON.stringify(Array.isArray(body.areas_options) ? body.areas_options : []),
     price_ranges_json: JSON.stringify(Array.isArray(body.price_ranges) ? body.price_ranges : [])
   };
@@ -303,7 +332,7 @@ app.get("/api/admin/export.csv", requireAdmin, (req, res) => {
   res.send(lines.join("\n"));
 });
 
-// If client build exists, serve it (useful later for production)
+// Optional production static serving
 const clientDist = path.join(__dirname, "..", "client", "dist");
 if (fs.existsSync(clientDist)) {
   app.use(express.static(clientDist));

@@ -68,6 +68,14 @@ function seedDefaults() {
     accent_color: "#2563eb",
     require_consent: "1",
     ask_financing_question: "1",
+    kiosk_reset_seconds: "90",
+
+    // QR labels (editable in admin)
+    qr_listing_title: "Listing",
+    qr_feature_title: "Feature Sheet",
+    qr_similar_title: "Similar Homes",
+    qr_book_showing_title: "Book Showing",
+
     areas_options_json: JSON.stringify(["Red Deer", "Blackfalds", "Sylvan Lake", "Lacombe", "Penhold"]),
     price_ranges_json: JSON.stringify([
       { value: "under_400", label: "Under $400k" },
@@ -79,7 +87,7 @@ function seedDefaults() {
 
   const tx = db.transaction(() => {
     Object.entries(defaults).forEach(([key, value]) => {
-      // Important: only seed if missing (do NOT overwrite saved admin settings)
+      // Seed only if missing (do NOT overwrite saved admin settings)
       insertSettingIfMissingStmt.run(key, String(value));
     });
   });
