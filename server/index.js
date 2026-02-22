@@ -3,6 +3,7 @@ require("dotenv").config();
 const crypto = require("crypto");
 const path = require("path");
 const fs = require("fs");
+const os = require("os");
 const express = require("express");
 const cors = require("cors");
 const {
@@ -59,7 +60,7 @@ function buildConfig() {
     qr_book_showing_title: s.qr_book_showing_title || "Book Showing",
 
     // Reset timer
-    kiosk_reset_seconds: Number(s.kiosk_reset_seconds || 90),
+    kiosk_reset_seconds: Math.max(15, Math.min(300, Number(s.kiosk_reset_seconds || 90) || 90)),
 
     hero_image_url: s.hero_image_url,
     agent_photo_url: s.agent_photo_url,
@@ -389,7 +390,41 @@ if (fs.existsSync(clientDist)) {
 });
 }
 
+function getNetworkUrls(port) {
+  const nets = os.networkInterfaces();
+  const urls = [];
+
+  for (const name of Object.keys(nets)) {
+    for (const net of nets[name] || []) {
+      // IPv4 only, ignore internal (127.0.0.1)
+      const isV4 = net.family === "IPv4" || net.family === 4;
+      if (isV4 && !net.internal) {
+        urls.push({
+          name,
+          url: `http://${net.address}:${port}`
+        });
+      }
+    }
+  }
+
+  return urls;
+}
+
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Open House Lead Station API running on http://0.0.0.0:${PORT}`);
+  console.log("");
+  console.log("Open House Lead Station API is running");
+  console.log(`Local:   http://localhost:${PORT}`);
+
+  const networkUrls = getNetworkUrls(PORT);
+  if (networkUrls.length) {
+    networkUrls.forEach((entry) => {
+      console.log(`Network: ${entry.url} (${entry.name})`);
+    });
+  } else {
+    console.log("Network: No active LAN IP found");
+  }
+
+  console.log(`Bind:    http://0.0.0.0:${PORT}`);
   console.log(`SQLite DB: ${dbPath}`);
+  console.log("");
 });
