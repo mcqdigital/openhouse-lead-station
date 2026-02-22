@@ -881,6 +881,11 @@ input[type="color"] {
 .visitor-row {
   padding: 10px;
   border-bottom: 1px solid var(--border);
+  transition: background 0.12s ease;
+}
+
+.visitor-row:hover {
+  background: #f8fafc;
 }
 
 .visitor-row:last-child {
