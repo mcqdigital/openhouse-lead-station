@@ -18,7 +18,7 @@ const defaultForm = {
   consent_marketing: false
 };
 
-const AUTO_RESET_SECONDS = 45; // was 20 — more time to scan QR codes
+const AUTO_RESET_SECONDS = 90; // was 20 — more time to scan QR codes
 
 const NAME_REGEX = /^[A-Za-zÀ-ÖØ-öø-ÿ]+(?:[ '\-][A-Za-zÀ-ÖØ-öø-ÿ]+)*$/;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -102,6 +102,18 @@ export default function App() {
   const [adminVisitors, setAdminVisitors] = useState([]);
   const [adminSettings, setAdminSettings] = useState(null);
   const [adminMsg, setAdminMsg] = useState("");
+  const [clearConfirm, setClearConfirm] = useState("");
+  const [clearMsg, setClearMsg] = useState("");
+  const [showClearPanel, setShowClearPanel] = useState(false);
+  const [deviceName, setDeviceName] = useState("");
+  const [dashboardUpdatedAt, setDashboardUpdatedAt] = useState("");
+  const [isOnline, setIsOnline] = useState(typeof navigator !== "undefined" ? navigator.onLine : true);
+  const [pinForm, setPinForm] = useState({
+    current_pin: "",
+    new_pin: "",
+    confirm_pin: ""
+    });
+    const [pinMsg, setPinMsg] = useState("");
 
   // hidden hotspot + auto-reset timers
   const adminTapCount = useRef(0);
@@ -112,6 +124,8 @@ export default function App() {
 
   const progressPercent = step <= 4 ? `${step * 25}%` : "100%";
 
+  const sessionLeadCount = adminStats?.total ?? 0;
+  
   const areaChoices = useMemo(
     () => (cfg?.areas_options || []).map((a) => ({ value: a, label: a })),
     [cfg]
@@ -199,6 +213,8 @@ export default function App() {
   }
 
   useEffect(() => {
+    setDeviceName(window.location.hostname || "This Device");
+    
     (async () => {
       await loadConfig();
       await refreshQueueCount();
@@ -206,13 +222,20 @@ export default function App() {
     })();
 
     const onOnline = () => {
-      tryFlushQueue();
+    setIsOnline(true);
+    tryFlushQueue();
+    };
+
+    const onOffline = () => {
+    setIsOnline(false);
     };
 
     window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
 
     return () => {
       window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
       clearTimeout(adminTapTimer.current);
       clearTimeout(resetTimeoutRef.current);
       clearInterval(resetIntervalRef.current);
@@ -372,6 +395,7 @@ export default function App() {
     });
 
     setAdminVisitors(visitors);
+    setDashboardUpdatedAt(new Date().toLocaleString());
   }
 
   useEffect(() => {
@@ -388,6 +412,17 @@ export default function App() {
     });
   }, [mode]);
 
+  useEffect(() => {
+  if (mode !== "admin" || !adminAuthed) return;
+
+  const id = setInterval(() => {
+    loadAdminData().catch(() => {});
+    refreshQueueCount().catch(() => {});
+  }, 15000); // every 15s
+
+  return () => clearInterval(id);
+}, [mode, adminAuthed]);
+
   async function saveAdminSettings() {
     if (!adminSettings) return;
 
@@ -401,7 +436,7 @@ export default function App() {
     qr_feature_title: String(adminSettings.qr_feature_title || "Feature Sheet").trim() || "Feature Sheet",
     qr_similar_title: String(adminSettings.qr_similar_title || "Similar Homes").trim() || "Similar Homes",
     qr_book_showing_title: String(adminSettings.qr_book_showing_title || "Book Showing").trim() || "Book Showing",
-    kiosk_reset_seconds: Number(adminSettings.kiosk_reset_seconds || 90),
+    kiosk_reset_seconds: Math.max(15, Math.min(300, Number(adminSettings.kiosk_reset_seconds || 90))),
       price_ranges: String(adminSettings.price_ranges_text || "")
         .split(",")
         .map((part) => part.trim())
@@ -427,10 +462,61 @@ export default function App() {
     await loadAdminData();
   }
 
-  async function runRefreshAndSyncQueue() {
-    await loadAdminData();
-    await tryFlushQueue();
+  async function changeAdminPin() {
+  try {
+    await apiPost("/api/admin/change-pin", pinForm, { admin: true });
+
+    setPinMsg("PIN updated successfully.");
+    setPinForm({
+      current_pin: "",
+      new_pin: "",
+      confirm_pin: ""
+    });
+
+    // Optional but nice: clear the message after a moment
+    setTimeout(() => setPinMsg(""), 2500);
+  } catch (e) {
+    setPinMsg(e?.message || "Could not update PIN.");
   }
+}
+
+  async function runRefreshAndSyncQueue() {
+  await tryFlushQueue();
+  await loadAdminData();
+  setDashboardUpdatedAt(new Date().toLocaleString());
+}
+
+  async function clearAllLeads() {
+  // Safety check: don't allow clear while offline queue has unsynced items
+  if (queueCount > 0) {
+    setClearMsg(
+      `You have ${queueCount} offline sign-in(s) pending sync. Please sync them before clearing leads.`
+    );
+    return;
+  }
+
+  if (clearConfirm.trim() !== "CLEAR") {
+    setClearMsg('Please type "CLEAR" to confirm deleting all leads.');
+    return;
+  }
+
+  try {
+    const result = await apiPost(
+      "/api/admin/clear-leads",
+      { confirm_text: clearConfirm.trim() },
+      { admin: true }
+    );
+
+    setClearMsg(result.message || "Leads cleared.");
+    setClearConfirm("");
+    setShowClearPanel(false);
+
+    // Refresh dashboard data
+    await loadAdminData();
+  } catch (e) {
+    setClearMsg(e?.message || "Could not clear leads.");
+  }
+}
 
   // -------- UI --------
   if (!cfg) {
@@ -457,6 +543,45 @@ export default function App() {
             Back to Kiosk
           </button>
         </div>
+
+{adminAuthed && (
+  <div className="panel session-header-panel">
+    <div className="session-header-top">
+      <div className="session-title-wrap">
+        <span className="status-pill ok">Open House Mode</span>
+        <h2 className="session-title">{adminSettings?.property_address || cfg?.property_address || "Property"}</h2>
+        <div className="session-subtitle">
+          {(adminSettings?.agent_name || cfg?.agent_name || "Agent")}&nbsp;•&nbsp;
+          {(adminSettings?.brokerage_name || cfg?.brokerage_name || "Brokerage")}
+        </div>
+      </div>
+
+      <div className="session-meta-grid">
+        <div className="session-meta-card">
+          <div className="session-meta-label">Session Leads</div>
+          <div className="session-meta-value">{sessionLeadCount}</div>
+        </div>
+
+        <div className="session-meta-card">
+          <div className="session-meta-label">Device</div>
+          <div className="session-meta-value smallish">{deviceName || "This Device"}</div>
+        </div>
+
+        <div className="session-meta-card">
+          <div className="session-meta-label">Status</div>
+          <div className="session-meta-badges">
+            <span className={`status-pill ${isOnline ? "ok" : "warn"}`}>
+              {isOnline ? "Online" : "Offline"}
+            </span>
+            <span className={`status-pill ${queueCount > 0 ? "warn" : "ok"}`}>
+              {queueCount > 0 ? `${queueCount} Pending` : "Synced"}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
 
         {!adminAuthed ? (
           <div className="panel admin-login">
@@ -656,6 +781,20 @@ export default function App() {
             <div className="panel">
               <h3>Live Summary</h3>
 
+              <div className="admin-status-row">
+                <span className={`status-pill ${isOnline ? "ok" : "warn"}`}>
+                    {isOnline ? "Online" : "Offline"}
+                </span>
+
+                <span className={`status-pill ${queueCount > 0 ? "warn" : "ok"}`}>
+                    {queueCount > 0 ? `${queueCount} Pending Sync` : "All Synced"}
+                </span>
+
+                <span className="status-pill neutral">
+                    {dashboardUpdatedAt ? `Updated ${dashboardUpdatedAt}` : "Not refreshed yet"}
+                </span>
+                </div>
+
               <div className="stats-row">
                 <StatBadge label="Total" value={adminStats?.total ?? 0} />
                 <StatBadge label="Hot" value={adminStats?.hot ?? 0} />
@@ -664,23 +803,8 @@ export default function App() {
               </div>
 
               <div className="small" style={{ marginBottom: 8 }}>
-                Pending offline queue on this device: {queueCount}
-              </div>
-
-              <div className="actions">
-                <button className="btn" onClick={runRefreshAndSyncQueue}>
-                  Refresh
-                </button>
-
-                <a
-                  className="btn"
-                  href={`/api/admin/export.csv?token=${encodeURIComponent(getAdminToken() || "")}`}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Export CSV
-                </a>
-              </div>
+            Device queue: {queueCount} pending sign-in{queueCount === 1 ? "" : "s"}
+            </div>
 
               <h3 style={{ marginTop: 18 }}>Recent Visitors</h3>
 
@@ -693,7 +817,7 @@ export default function App() {
                       <strong>
                         {v.first_name} {v.last_name}
                       </strong>
-                      <span className={`badge ${String(v.lead_label).toLowerCase()}`}>
+                      <span className={`badge ${String(v.lead_label).toLowerCase().replace(/\s+/g, "-")}`}>
                         {v.lead_label} ({v.lead_score})
                       </span>
                     </div>
@@ -725,12 +849,163 @@ export default function App() {
                     setAdminAuthed(false);
                     setPin("");
                     setAdminMsg("");
-                  }}
+                    setPinMsg("");
+                    setPinForm({
+                        current_pin: "",
+                        new_pin: "",
+                        confirm_pin: ""
+                    });
+                }}
                 >
                   Log Out
                 </button>
               </div>
             </div>
+
+<div className="panel">
+  <h3>Data Management</h3>
+
+  <div className="small" style={{ marginBottom: 10 }}>
+    Use these tools after an open house to export leads and start fresh for the next event.
+  </div>
+
+  <div className="actions" style={{ marginBottom: 12 }}>
+    <button className="btn" onClick={runRefreshAndSyncQueue}>
+      Refresh & Sync Queue
+    </button>
+
+    <a
+      className="btn"
+      href={`/api/admin/export.csv?token=${encodeURIComponent(getAdminToken() || "")}`}
+      target="_blank"
+      rel="noreferrer"
+    >
+      Export CSV
+    </a>
+  </div>
+
+  <div
+    style={{
+      border: "1px solid rgba(220,38,38,0.25)",
+      borderRadius: 12,
+      padding: 12,
+      background: "rgba(220,38,38,0.04)"
+    }}
+  >
+    <div style={{ fontWeight: 600, marginBottom: 6 }}>Danger Zone</div>
+
+    <div className="small" style={{ marginBottom: 10 }}>
+      Permanently deletes all leads stored on this device. Export your CSV first.
+    </div>
+
+    {queueCount > 0 && (
+      <div className="error" style={{ marginBottom: 10 }}>
+        Cannot clear leads while {queueCount} offline sign-in(s) are pending sync.
+      </div>
+    )}
+
+    {!showClearPanel ? (
+      <button
+        className="btn"
+        onClick={() => {
+          setShowClearPanel(true);
+          setClearMsg("");
+        }}
+        disabled={queueCount > 0}
+      >
+        Clear Leads…
+      </button>
+    ) : (
+      <>
+        <label>Type CLEAR to confirm</label>
+        <input
+          value={clearConfirm}
+          onChange={(e) => setClearConfirm(e.target.value)}
+          placeholder="CLEAR"
+        />
+
+        {clearMsg ? (
+          <div
+            className={
+            /cleared|deleted|success/i.test(clearMsg) ? "small" : "error"
+            }
+            style={{ marginTop: 8 }}
+          >
+            {clearMsg}
+          </div>
+        ) : null}
+
+        <div className="actions" style={{ marginTop: 10 }}>
+          <button className="btn" onClick={() => {
+            setShowClearPanel(false);
+            setClearConfirm("");
+            setClearMsg("");
+          }}>
+            Cancel
+          </button>
+
+          <button
+            className="btn"
+            onClick={clearAllLeads}
+            disabled={queueCount > 0}
+          >
+            Confirm Clear Leads
+          </button>
+        </div>
+      </>
+    )}
+  </div>
+</div>
+
+<div className="panel">
+  <h3>Security</h3>
+  <div className="small" style={{ marginBottom: 10 }}>
+    Admin PIN is hidden for security. Use 4–8 digits.
+  </div>
+
+  <label>Current PIN</label>
+  <input
+    type="password"
+    value={pinForm.current_pin}
+    onChange={(e) => setPinForm({ ...pinForm, current_pin: e.target.value })}
+    placeholder="Current PIN"
+    inputMode="numeric"
+  />
+
+  <label>New PIN</label>
+  <input
+    type="password"
+    value={pinForm.new_pin}
+    onChange={(e) => setPinForm({ ...pinForm, new_pin: e.target.value })}
+    placeholder="New PIN (4–8 digits)"
+    inputMode="numeric"
+  />
+
+  <label>Confirm New PIN</label>
+  <input
+    type="password"
+    value={pinForm.confirm_pin}
+    onChange={(e) => setPinForm({ ...pinForm, confirm_pin: e.target.value })}
+    placeholder="Confirm new PIN"
+    inputMode="numeric"
+  />
+
+  {pinMsg ? (
+    <div
+      className={pinMsg.toLowerCase().includes("success") ? "small" : "error"}
+      style={{ marginTop: 8 }}
+    >
+      {pinMsg}
+    </div>
+  ) : null}
+
+  <div className="actions" style={{ marginTop: 10 }}>
+    <button className="btn" onClick={changeAdminPin}>
+      Update PIN
+    </button>
+  </div>
+</div>
+
           </div>
         )}
       </div>

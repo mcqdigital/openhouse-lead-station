@@ -631,7 +631,7 @@ input[type="color"] {
 
 .qr-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
   align-items: stretch;
 }
@@ -706,6 +706,133 @@ input[type="color"] {
   display: grid;
   grid-template-columns: 1.1fr 1fr;
   gap: 12px;
+}
+
+/* Admin Live Summary status row */
+.admin-status-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0 12px;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  border: 1px solid transparent;
+  background: rgba(15, 23, 42, 0.06);
+  color: #0f172a;
+}
+
+.status-pill.ok {
+  background: rgba(22, 163, 74, 0.10);
+  border-color: rgba(22, 163, 74, 0.22);
+  color: #166534;
+}
+
+.status-pill.warn {
+  background: rgba(217, 119, 6, 0.10);
+  border-color: rgba(217, 119, 6, 0.22);
+  color: #92400e;
+}
+
+.status-pill.neutral {
+  background: rgba(15, 23, 42, 0.05);
+  border-color: rgba(15, 23, 42, 0.08);
+  color: #334155;
+}
+
+/* Admin Session Header */
+.session-header-panel {
+  margin-bottom: 14px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.95), rgba(248,250,252,0.95));
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.session-header-top {
+  display: grid;
+  grid-template-columns: 1.25fr 1fr;
+  gap: 14px;
+  align-items: stretch;
+}
+
+.session-title-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.session-title {
+  margin: 0;
+  font-size: 1.15rem;
+  line-height: 1.2;
+  color: #0f172a;
+}
+
+.session-subtitle {
+  color: #475569;
+  font-size: 0.92rem;
+}
+
+.session-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.session-meta-card {
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: #fff;
+  border-radius: 12px;
+  padding: 10px;
+  min-height: 72px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.session-meta-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #64748b;
+  margin-bottom: 4px;
+  font-weight: 700;
+}
+
+.session-meta-value {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.2;
+  word-break: break-word;
+}
+
+.session-meta-value.smallish {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.session-meta-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+@media (max-width: 980px) {
+  .session-header-top {
+    grid-template-columns: 1fr;
+  }
+
+  .session-meta-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .stats-row {

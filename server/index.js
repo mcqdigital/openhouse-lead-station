@@ -11,12 +11,16 @@ const {
   updateSettings,
   insertVisitor,
   listVisitors,
-  getStats
+  getStats,
+  clearVisitors
 } = require("./db");
 
 const app = express();
 const PORT = Number(process.env.PORT || 8787);
-const ADMIN_PIN = String(process.env.ADMIN_PIN || "1234");
+function getAdminPin() {
+  const s = getAllSettings();
+  return String(s.admin_pin || process.env.ADMIN_PIN || "1234");
+}
 
 // Lightweight in-memory admin tokens (dev/MVP)
 // Tokens reset on server restart.
@@ -206,15 +210,38 @@ app.post("/api/public/checkin", (req, res) => {
 // ---------- Admin routes ----------
 app.post("/api/admin/login", (req, res) => {
   const pin = String(req.body.pin || "");
-
-  if (pin !== ADMIN_PIN) {
-    return res.status(401).json({ error: "Invalid PIN" });
-  }
+if (pin !== getAdminPin()) {
+  return res.status(401).json({ error: "Invalid PIN" });
+}
 
   const token = crypto.randomUUID();
   adminTokens.add(token);
 
   res.json({ success: true, token });
+});
+
+app.post("/api/admin/change-pin", requireAdmin, (req, res) => {
+  const currentPin = String(req.body.current_pin || "");
+  const newPin = String(req.body.new_pin || "");
+  const confirmPin = String(req.body.confirm_pin || "");
+
+  const actualPin = getAdminPin();
+
+  if (currentPin !== actualPin) {
+    return res.status(400).json({ error: "Current PIN is incorrect." });
+  }
+
+  if (!/^\d{4,8}$/.test(newPin)) {
+    return res.status(400).json({ error: "New PIN must be 4 to 8 digits." });
+  }
+
+  if (newPin !== confirmPin) {
+    return res.status(400).json({ error: "New PIN and confirmation do not match." });
+  }
+
+  updateSettings({ admin_pin: newPin });
+
+  res.json({ success: true, message: "PIN updated successfully." });
 });
 
 app.get("/api/admin/status", requireAdmin, (req, res) => {
@@ -258,10 +285,10 @@ app.post("/api/admin/settings", requireAdmin, (req, res) => {
     ask_financing_question: body.ask_financing_question ? "1" : "0",
 
     // New fields
-    qr_listing_title: String(body.qr_listing_title ?? "Listing"),
-    qr_feature_title: String(body.qr_feature_title ?? "Feature Sheet"),
-    qr_similar_title: String(body.qr_similar_title ?? "Similar Homes"),
-    qr_book_showing_title: String(body.qr_book_showing_title ?? "Book Showing"),
+    qr_listing_title: String(body.qr_listing_title ?? "Listing").trim() || "Listing",
+    qr_feature_title: String(body.qr_feature_title ?? "Feature Sheet").trim() || "Feature Sheet",
+    qr_similar_title: String(body.qr_similar_title ?? "Similar Homes").trim() || "Similar Homes",
+    qr_book_showing_title: String(body.qr_book_showing_title ?? "Book Showing").trim() || "Book Showing",
     kiosk_reset_seconds: String(resetSeconds),
 
     areas_options_json: JSON.stringify(Array.isArray(body.areas_options) ? body.areas_options : []),
@@ -275,6 +302,25 @@ app.post("/api/admin/settings", requireAdmin, (req, res) => {
 app.get("/api/admin/visitors", requireAdmin, (req, res) => {
   const rows = listVisitors(500);
   res.json(rows);
+});
+
+app.post("/api/admin/clear-leads", requireAdmin, (req, res) => {
+  const body = req.body || {};
+  const confirmText = String(body.confirm_text || "").trim();
+
+  if (confirmText !== "CLEAR") {
+    return res.status(400).json({
+      error: 'Confirmation failed. Type "CLEAR" to delete all leads.'
+    });
+  }
+
+  const result = clearVisitors();
+
+  res.json({
+    success: true,
+    deleted: result.deleted,
+    message: `Deleted ${result.deleted} lead(s).`
+  });
 });
 
 app.get("/api/admin/export.csv", requireAdmin, (req, res) => {
@@ -337,11 +383,10 @@ const clientDist = path.join(__dirname, "..", "client", "dist");
 if (fs.existsSync(clientDist)) {
   app.use(express.static(clientDist));
 
-  app.get("*", (req, res) => {
-    if (!req.path.startsWith("/api/")) {
-      res.sendFile(path.join(clientDist, "index.html"));
-    }
-  });
+  app.get("*", (req, res, next) => {
+  if (req.path.startsWith("/api/")) return next();
+  res.sendFile(path.join(clientDist, "index.html"));
+});
 }
 
 app.listen(PORT, "0.0.0.0", () => {

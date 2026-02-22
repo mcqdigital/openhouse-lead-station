@@ -69,6 +69,7 @@ function seedDefaults() {
     require_consent: "1",
     ask_financing_question: "1",
     kiosk_reset_seconds: "90",
+    admin_pin: "1234",
 
     // QR labels (editable in admin)
     qr_listing_title: "Listing",
@@ -176,6 +177,18 @@ function getStats() {
   return { total, hot, warm, nurture };
 }
 
+function clearVisitors() {
+  const stmt = db.prepare(`DELETE FROM visitors`);
+  const info = stmt.run();
+
+  // Optional: reset autoincrement so IDs start fresh (cleaner for new open house)
+  db.prepare(`DELETE FROM sqlite_sequence WHERE name = 'visitors'`).run();
+
+  return {
+    deleted: Number(info.changes || 0)
+  };
+}
+
 module.exports = {
   db,
   dbPath,
@@ -183,5 +196,6 @@ module.exports = {
   updateSettings,
   insertVisitor,
   listVisitors,
-  getStats
+  getStats,
+  clearVisitors
 };
