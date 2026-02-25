@@ -11,8 +11,8 @@ export default defineConfig({
         enabled: true
       },
       manifest: {
-        name: "Open House Lead Station",
-        short_name: "OpenHouse",
+        name: "PropertyConnector Open House Sign-In",
+        short_name: "PropertyConnector",
         description: "Tablet-first open house sign-in kiosk for realtors",
         theme_color: "#0f172a",
         background_color: "#f8fafc",
@@ -20,12 +20,12 @@ export default defineConfig({
         start_url: "/",
         icons: [
           {
-            src: "https://dummyimage.com/192x192/0f172a/ffffff.png&text=OH",
+            src: "https://dummyimage.com/192x192/0f172a/ffffff.png&text=PC",
             sizes: "192x192",
             type: "image/png"
           },
           {
-            src: "https://dummyimage.com/512x512/0f172a/ffffff.png&text=OH",
+            src: "https://dummyimage.com/512x512/0f172a/ffffff.png&text=PC",
             sizes: "512x512",
             type: "image/png"
           }

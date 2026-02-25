@@ -1,10 +1,10 @@
 # Architecture
 
-This document explains how Open House Lead Station is structured and how data flows through the system.
+This document explains how Open House Lead Station by PropertyConnector is structured and how data flows through the system.
 
 ## Overview
 
-Open House Lead Station is a **local-first kiosk application** for real estate open houses.
+Open House Lead Station by PropertyConnector is a **local-first kiosk application** for real estate open houses.
 
 It is made of:
 
@@ -137,7 +137,7 @@ PIN precedence:
    - `/api/admin/export.csv?token=<admin-token>`
 3. Backend loads visitors
 4. Backend converts rows to CSV
-5. Browser downloads `openhouse-leads.csv`
+5. Browser downloads `propertyconnector-openhouse-leads.csv`
 
 ---
 

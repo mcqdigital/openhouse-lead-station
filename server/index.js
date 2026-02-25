@@ -18,6 +18,13 @@ const {
 
 const app = express();
 const PORT = Number(process.env.PORT || 8787);
+const MEDIA_CACHE_DIR = path.join(__dirname, "data", "media-cache");
+const MEDIA_CACHE_MAX_BYTES = 5 * 1024 * 1024;
+const MEDIA_FETCH_TIMEOUT_MS = 10000;
+
+if (!fs.existsSync(MEDIA_CACHE_DIR)) {
+  fs.mkdirSync(MEDIA_CACHE_DIR, { recursive: true });
+}
 function getAdminPin() {
   const s = getAllSettings();
   return String(s.admin_pin || process.env.ADMIN_PIN || "1234");
@@ -29,6 +36,7 @@ const adminTokens = new Set();
 
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
+app.use("/media-cache", express.static(MEDIA_CACHE_DIR, { maxAge: "7d" }));
 
 function parseJSON(value, fallback) {
   try {
@@ -64,6 +72,8 @@ function buildConfig() {
 
     hero_image_url: s.hero_image_url,
     agent_photo_url: s.agent_photo_url,
+    hero_image_cached_path: s.hero_image_cached_path || "",
+    agent_photo_cached_path: s.agent_photo_cached_path || "",
     brand_color: s.brand_color,
     accent_color: s.accent_color,
 
@@ -117,6 +127,73 @@ function validName(value = "") {
 
 function validEmail(value = "") {
   return EMAIL_REGEX.test(String(value).trim());
+}
+
+function allowedImageUrl(value = "") {
+  try {
+    const u = new URL(String(value));
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function extFromContentType(contentType = "") {
+  const t = String(contentType).toLowerCase();
+  if (t.includes("image/jpeg")) return "jpg";
+  if (t.includes("image/png")) return "png";
+  if (t.includes("image/webp")) return "webp";
+  if (t.includes("image/gif")) return "gif";
+  if (t.includes("image/svg+xml")) return "svg";
+  return "img";
+}
+
+function clearCachedRoleFiles(role) {
+  const files = fs.readdirSync(MEDIA_CACHE_DIR);
+  files.forEach((name) => {
+    if (name.startsWith(`${role}.`)) {
+      fs.rmSync(path.join(MEDIA_CACHE_DIR, name), { force: true });
+    }
+  });
+}
+
+async function cacheImageFromUrl(url, role) {
+  if (!allowedImageUrl(url)) {
+    throw new Error("Only http/https image URLs are allowed.");
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), MEDIA_FETCH_TIMEOUT_MS);
+
+  let res;
+  try {
+    res = await fetch(url, { signal: controller.signal, redirect: "follow" });
+  } finally {
+    clearTimeout(timer);
+  }
+
+  if (!res.ok) {
+    throw new Error(`Image download failed (${res.status}).`);
+  }
+
+  const contentType = String(res.headers.get("content-type") || "");
+  if (!contentType.toLowerCase().startsWith("image/")) {
+    throw new Error("Remote URL did not return an image.");
+  }
+
+  const buf = Buffer.from(await res.arrayBuffer());
+  if (buf.length > MEDIA_CACHE_MAX_BYTES) {
+    throw new Error("Image is too large (max 5MB).");
+  }
+
+  const ext = extFromContentType(contentType);
+  const fileName = `${role}.${ext}`;
+  const filePath = path.join(MEDIA_CACHE_DIR, fileName);
+
+  clearCachedRoleFiles(role);
+  fs.writeFileSync(filePath, buf);
+
+  return `/media-cache/${fileName}`;
 }
 
 function requireAdmin(req, res, next) {
@@ -257,12 +334,36 @@ app.get("/api/admin/settings", requireAdmin, (req, res) => {
   res.json(buildConfig());
 });
 
-app.post("/api/admin/settings", requireAdmin, (req, res) => {
+app.post("/api/admin/settings", requireAdmin, async (req, res) => {
   const body = req.body || {};
+  const settings = getAllSettings();
 
   let resetSeconds = Number(body.kiosk_reset_seconds || 90);
   if (!Number.isFinite(resetSeconds)) resetSeconds = 90;
   resetSeconds = Math.max(15, Math.min(300, Math.round(resetSeconds)));
+
+  let heroImageCachedPath = settings.hero_image_cached_path || "";
+  let agentPhotoCachedPath = settings.agent_photo_cached_path || "";
+
+  try {
+    if (!String(body.hero_image_url || "").trim()) {
+      clearCachedRoleFiles("hero");
+      heroImageCachedPath = "";
+    } else {
+      heroImageCachedPath = await cacheImageFromUrl(String(body.hero_image_url).trim(), "hero");
+    }
+
+    if (!String(body.agent_photo_url || "").trim()) {
+      clearCachedRoleFiles("agent");
+      agentPhotoCachedPath = "";
+    } else {
+      agentPhotoCachedPath = await cacheImageFromUrl(String(body.agent_photo_url).trim(), "agent");
+    }
+  } catch (e) {
+    return res.status(400).json({
+      error: e?.message || "Could not cache one or more images. Check image URLs."
+    });
+  }
 
   const patch = {
     brand_name: body.brand_name ?? "",
@@ -278,6 +379,8 @@ app.post("/api/admin/settings", requireAdmin, (req, res) => {
 
     hero_image_url: body.hero_image_url ?? "",
     agent_photo_url: body.agent_photo_url ?? "",
+    hero_image_cached_path: heroImageCachedPath,
+    agent_photo_cached_path: agentPhotoCachedPath,
 
     brand_color: body.brand_color ?? "#0f172a",
     accent_color: body.accent_color ?? "#2563eb",
@@ -375,7 +478,7 @@ app.get("/api/admin/export.csv", requireAdmin, (req, res) => {
   });
 
   res.setHeader("Content-Type", "text/csv");
-  res.setHeader("Content-Disposition", "attachment; filename=openhouse-leads.csv");
+  res.setHeader("Content-Disposition", "attachment; filename=propertyconnector-openhouse-leads.csv");
   res.send(lines.join("\n"));
 });
 
@@ -412,7 +515,7 @@ function getNetworkUrls(port) {
 
 app.listen(PORT, "0.0.0.0", () => {
   console.log("");
-  console.log("Open House Lead Station API is running");
+  console.log("PropertyConnector Lead Station API is running");
   console.log(`Local:   http://localhost:${PORT}`);
 
   const networkUrls = getNetworkUrls(PORT);

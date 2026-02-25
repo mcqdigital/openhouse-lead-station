@@ -148,6 +148,9 @@ export default function App() {
     );
   }, [cfg]);
 
+   const heroImageSrc = cfg?.hero_image_cached_path || cfg?.hero_image_url || "";
+    const agentPhotoSrc = cfg?.agent_photo_cached_path || cfg?.agent_photo_url || "";
+
     const contactStepHasMinimumInput = Boolean(
         form.first_name.trim() &&
         form.last_name.trim() &&
@@ -520,7 +523,7 @@ export default function App() {
 
   // -------- UI --------
   if (!cfg) {
-    return <div className="loading">Loading kiosk…</div>;
+    return <div className="loading">Loading PropertyConnector Open House…</div>;
   }
 
   if (mode === "admin") {
@@ -528,7 +531,7 @@ export default function App() {
       <div className="admin-shell">
         <div className="admin-header">
           <div>
-            <h1>Open House Lead Station Admin</h1>
+            <h1>Open House Admin</h1>
             <p>Manage the event, branding, and leads.</p>
           </div>
 
@@ -1032,8 +1035,8 @@ export default function App() {
           </div>
 
           <div className="agent-block">
-            {cfg.agent_photo_url ? (
-              <img className="agent-photo" src={cfg.agent_photo_url} alt={cfg.agent_name || "Agent"} />
+            {agentPhotoSrc ? (
+              <img className="agent-photo" src={agentPhotoSrc} alt={cfg.agent_name || "Agent"} />
             ) : (
               <div className="agent-fallback">{agentInitials}</div>
             )}
@@ -1045,6 +1048,10 @@ export default function App() {
           </div>
         </header>
 
+        <div className="powered-lockup" aria-label="Brand endorsement">
+          Powered by <strong>PropertyConnector</strong>
+        </div>
+
         {syncBanner && <div className="sync-banner">{syncBanner}</div>}
         {queueCount > 0 && (
           <div className="offline-banner">Offline queue: {queueCount} sign-in(s) pending sync</div>
@@ -1052,11 +1059,11 @@ export default function App() {
 
         <section
           className="hero-card"
-          style={cfg.hero_image_url ? { backgroundImage: `url(${cfg.hero_image_url})` } : undefined}
+          style={heroImageSrc ? { backgroundImage: `url(${heroImageSrc})` } : undefined}
         >
           <div className="hero-overlay">
             <div className="hero-content">
-              <div className="hero-kicker">Open House</div>
+              <div className="hero-kicker">Open House Sign-In</div>
               <div className="hero-title">{cfg.property_address}</div>
               <div className="hero-text">{cfg.welcome_message}</div>
 

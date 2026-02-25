@@ -4,7 +4,7 @@ This document is written specifically for AI assistants (and developers using AI
 
 ## What This App Is
 
-**Open House Lead Station** is a self-hosted kiosk app for real estate open houses.
+**Open House Lead Station by PropertyConnector** is a self-hosted kiosk app for real estate open houses.
 
 It runs on a local device setup (commonly a Raspberry Pi + tablet) and allows visitors to:
 

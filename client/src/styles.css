@@ -201,6 +201,20 @@ img {
   max-width: 260px;
 }
 
+.powered-lockup {
+  align-self: flex-end;
+  font-size: 0.74rem;
+  color: var(--muted);
+  letter-spacing: 0.01em;
+  margin-top: -2px;
+  margin-right: 2px;
+}
+
+.powered-lockup strong {
+  color: var(--brand);
+}
+
+
 /* -------------------------
    Banners
 -------------------------- */

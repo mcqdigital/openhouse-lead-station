@@ -53,7 +53,7 @@ const insertSettingIfMissingStmt = db.prepare(`
 
 function seedDefaults() {
   const defaults = {
-    brand_name: "Open House Lead Station",
+    brand_name: "PropertyConnector Open House Sign-In",
     agent_name: "Your Name",
     brokerage_name: "Your Brokerage",
     property_address: "123 Apple St, Red Deer, AB",
@@ -64,6 +64,8 @@ function seedDefaults() {
     book_showing_url: "https://example.com/book-showing",
     hero_image_url: "",
     agent_photo_url: "",
+    hero_image_cached_path: "",
+    agent_photo_cached_path: "",
     brand_color: "#0f172a",
     accent_color: "#2563eb",
     require_consent: "1",

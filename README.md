@@ -1,4 +1,4 @@
-# Open House Lead Station
+# Open House Lead Station by PropertyConnector
 
 A polished, offline-friendly **open house sign-in kiosk** for realtors.  
 Built for **Raspberry Pi + tablet** deployments, with branded QR links, lead scoring, admin tools, CSV export, and offline queue support.
