@@ -515,7 +515,7 @@ function getNetworkUrls(port) {
 
 app.listen(PORT, "0.0.0.0", () => {
   console.log("");
-  console.log("PropertyConnector Lead Station API is running");
+  console.log("PropertyConnector Open House API is running");
   console.log(`Local:   http://localhost:${PORT}`);
 
   const networkUrls = getNetworkUrls(PORT);

@@ -20,12 +20,13 @@ export default defineConfig({
         start_url: "/",
         icons: [
           {
-            src: "https://dummyimage.com/192x192/0f172a/ffffff.png&text=PC",
+            src: "/icons/propertyconnector-192.png",
             sizes: "192x192",
-            type: "image/png"
+            type: "image/png",
+            purpose: "any maskable"
           },
           {
-            src: "https://dummyimage.com/512x512/0f172a/ffffff.png&text=PC",
+            src: "/icons/propertyconnector-512.png",
             sizes: "512x512",
             type: "image/png"
           }
