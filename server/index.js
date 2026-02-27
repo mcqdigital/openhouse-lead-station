@@ -34,7 +34,26 @@ function getAdminPin() {
 // Tokens reset on server restart.
 const adminTokens = new Set();
 
-app.use(cors());
+const DEFAULT_CORS_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:8787", "http://127.0.0.1:8787"];
+const CORS_ALLOWED_ORIGINS = String(process.env.CORS_ALLOWED_ORIGINS || "")
+  .split(",")
+  .map((v) => v.trim())
+  .filter(Boolean);
+
+const ALLOWED_ORIGINS = CORS_ALLOWED_ORIGINS.length ? CORS_ALLOWED_ORIGINS : DEFAULT_CORS_ORIGINS;
+
+app.use(
+  cors({
+    origin(origin, cb) {
+      // Allow non-browser clients (no Origin header)
+      if (!origin) return cb(null, true);
+      if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+      return cb(new Error("Not allowed by CORS"));
+    },
+    methods: ["GET", "POST"],
+    allowedHeaders: ["Content-Type", "x-admin-token"]
+  })
+);
 app.use(express.json({ limit: "1mb" }));
 app.use("/media-cache", express.static(MEDIA_CACHE_DIR, { maxAge: "7d" }));
 
@@ -345,24 +364,30 @@ app.post("/api/admin/settings", requireAdmin, async (req, res) => {
   let heroImageCachedPath = settings.hero_image_cached_path || "";
   let agentPhotoCachedPath = settings.agent_photo_cached_path || "";
 
-  try {
-    if (!String(body.hero_image_url || "").trim()) {
-      clearCachedRoleFiles("hero");
-      heroImageCachedPath = "";
-    } else {
-      heroImageCachedPath = await cacheImageFromUrl(String(body.hero_image_url).trim(), "hero");
-    }
+  const warnings = [];
 
-    if (!String(body.agent_photo_url || "").trim()) {
-      clearCachedRoleFiles("agent");
-      agentPhotoCachedPath = "";
-    } else {
-      agentPhotoCachedPath = await cacheImageFromUrl(String(body.agent_photo_url).trim(), "agent");
+  if (!String(body.hero_image_url || "").trim()) {
+    clearCachedRoleFiles("hero");
+    heroImageCachedPath = "";
+  } else {
+    try {
+      heroImageCachedPath = await cacheImageFromUrl(String(body.hero_image_url).trim(), "hero");
+    } catch (e) {
+      warnings.push(`Hero image cache warning: ${e?.message || "Could not cache hero image."}`);
+      heroImageCachedPath = settings.hero_image_cached_path || "";
     }
-  } catch (e) {
-    return res.status(400).json({
-      error: e?.message || "Could not cache one or more images. Check image URLs."
-    });
+  }
+
+  if (!String(body.agent_photo_url || "").trim()) {
+    clearCachedRoleFiles("agent");
+    agentPhotoCachedPath = "";
+  } else {
+    try {
+      agentPhotoCachedPath = await cacheImageFromUrl(String(body.agent_photo_url).trim(), "agent");
+    } catch (e) {
+      warnings.push(`Agent image cache warning: ${e?.message || "Could not cache agent image."}`);
+      agentPhotoCachedPath = settings.agent_photo_cached_path || "";
+    }
   }
 
   const patch = {
@@ -400,7 +425,7 @@ app.post("/api/admin/settings", requireAdmin, async (req, res) => {
   };
 
   updateSettings(patch);
-  res.json({ success: true });
+  res.json({ success: true, warnings });
 });
 
 app.get("/api/admin/visitors", requireAdmin, (req, res) => {

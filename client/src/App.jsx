@@ -446,45 +446,55 @@ async function refreshAdminLiveData() {
   return () => clearInterval(id);
 }, [mode, adminAuthed, isSettingsDirty]);
 
-  async function saveAdminSettings() {
-    if (!adminSettings) return;
+async function saveAdminSettings() {
+  if (!adminSettings) return;
 
-    const payload = {
-      ...adminSettings,
-      areas_options: String(adminSettings.areas_options_text || "")
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean),
+  const payload = {
+    ...adminSettings,
+    areas_options: String(adminSettings.areas_options_text || "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean),
     qr_listing_title: String(adminSettings.qr_listing_title || "Listing").trim() || "Listing",
     qr_feature_title: String(adminSettings.qr_feature_title || "Feature Sheet").trim() || "Feature Sheet",
     qr_similar_title: String(adminSettings.qr_similar_title || "Similar Homes").trim() || "Similar Homes",
     qr_book_showing_title: String(adminSettings.qr_book_showing_title || "Book Showing").trim() || "Book Showing",
     kiosk_reset_seconds: Math.max(15, Math.min(300, Number(adminSettings.kiosk_reset_seconds || 90))),
-      price_ranges: String(adminSettings.price_ranges_text || "")
-        .split(",")
-        .map((part) => part.trim())
-        .filter(Boolean)
-        .map((pair) => {
-          const [value, label] = pair.split("|");
-          return {
-            value: (value || "").trim(),
-            label: (label || value || "").trim()
-          };
-        })
-        .filter((p) => p.value),
-      require_consent: !!adminSettings.require_consent,
-      ask_financing_question: !!adminSettings.ask_financing_question
-    };
+    price_ranges: String(adminSettings.price_ranges_text || "")
+      .split(",")
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .map((pair) => {
+        const [value, label] = pair.split("|");
+        return {
+          value: (value || "").trim(),
+          label: (label || value || "").trim()
+        };
+      })
+      .filter((p) => p.value),
+    require_consent: !!adminSettings.require_consent,
+    ask_financing_question: !!adminSettings.ask_financing_question
+  };
 
-    await apiPost("/api/admin/settings", payload, { admin: true });
+  try {
+    const result = await apiPost("/api/admin/settings", payload, { admin: true });
+    const warnings = Array.isArray(result?.warnings) ? result.warnings : [];
 
-    setAdminMsg("Settings saved.");
-    setTimeout(() => setAdminMsg(""), 2000);
+    if (warnings.length > 0) {
+      setAdminMsg(`Settings saved with warning: ${warnings[0]}`);
+    } else {
+      setAdminMsg("Settings saved.");
+    }
+
+    setTimeout(() => setAdminMsg(""), 5000);
 
     await loadConfig();
     await loadAdminData();
     setIsSettingsDirty(false);
+  } catch (e) {
+    setAdminMsg(e?.message || "Could not save settings.");
   }
+}
 
   async function changeAdminPin() {
   try {
