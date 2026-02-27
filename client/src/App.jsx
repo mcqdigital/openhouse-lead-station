@@ -101,6 +101,7 @@ export default function App() {
   const [adminStats, setAdminStats] = useState(null);
   const [adminVisitors, setAdminVisitors] = useState([]);
   const [adminSettings, setAdminSettings] = useState(null);
+  const [isSettingsDirty, setIsSettingsDirty] = useState(false);
   const [adminMsg, setAdminMsg] = useState("");
   const [clearConfirm, setClearConfirm] = useState("");
   const [clearMsg, setClearMsg] = useState("");
@@ -396,9 +397,26 @@ export default function App() {
         .map((p) => `${p.value}|${p.label}`)
         .join(", ")
     });
+    setIsSettingsDirty(false);
 
     setAdminVisitors(visitors);
     setDashboardUpdatedAt(new Date().toLocaleString());
+  }
+
+async function refreshAdminLiveData() {
+    const [stats, visitors] = await Promise.all([
+      apiGet("/api/admin/status", { admin: true }),
+      apiGet("/api/admin/visitors", { admin: true })
+    ]);
+
+    setAdminStats(stats);
+    setAdminVisitors(visitors);
+    setDashboardUpdatedAt(new Date().toLocaleString());
+  }
+
+  function updateAdminSetting(key, value) {
+    setIsSettingsDirty(true);
+    setAdminSettings((prev) => ({ ...(prev || {}), [key]: value }));
   }
 
   useEffect(() => {
@@ -419,12 +437,14 @@ export default function App() {
   if (mode !== "admin" || !adminAuthed) return;
 
   const id = setInterval(() => {
-    loadAdminData().catch(() => {});
+      if (!isSettingsDirty) {
+      refreshAdminLiveData().catch(() => {});
+    }
     refreshQueueCount().catch(() => {});
   }, 15000); // every 15s
 
   return () => clearInterval(id);
-}, [mode, adminAuthed]);
+}, [mode, adminAuthed, isSettingsDirty]);
 
   async function saveAdminSettings() {
     if (!adminSettings) return;
@@ -463,6 +483,7 @@ export default function App() {
 
     await loadConfig();
     await loadAdminData();
+    setIsSettingsDirty(false);
   }
 
   async function changeAdminPin() {
@@ -616,38 +637,38 @@ export default function App() {
               <label>Brand Name</label>
               <input
                 value={adminSettings?.brand_name || ""}
-                onChange={(e) => setAdminSettings({ ...adminSettings, brand_name: e.target.value })}
+                onChange={(e) => updateAdminSetting("brand_name", e.target.value)}
               />
 
               <label>Agent Name</label>
               <input
                 value={adminSettings?.agent_name || ""}
-                onChange={(e) => setAdminSettings({ ...adminSettings, agent_name: e.target.value })}
+                onChange={(e) => updateAdminSetting("agent_name", e.target.value)}
               />
 
               <label>Brokerage Name</label>
               <input
                 value={adminSettings?.brokerage_name || ""}
-                onChange={(e) => setAdminSettings({ ...adminSettings, brokerage_name: e.target.value })}
+                onChange={(e) => updateAdminSetting("brokerage_name", e.target.value)}
               />
 
               <label>Property Address</label>
               <input
                 value={adminSettings?.property_address || ""}
-                onChange={(e) => setAdminSettings({ ...adminSettings, property_address: e.target.value })}
+                onChange={(e) => updateAdminSetting("property_address", e.target.value)}
               />
 
               <label>Hero Image URL</label>
               <input
                 value={adminSettings?.hero_image_url || ""}
-                onChange={(e) => setAdminSettings({ ...adminSettings, hero_image_url: e.target.value })}
+                onChange={(e) => updateAdminSetting("hero_image_url", e.target.value)}
                 placeholder="https://..."
               />
 
               <label>Agent Headshot / Logo URL</label>
               <input
                 value={adminSettings?.agent_photo_url || ""}
-                onChange={(e) => setAdminSettings({ ...adminSettings, agent_photo_url: e.target.value })}
+                onChange={(e) => updateAdminSetting("agent_photo_url", e.target.value)}
                 placeholder="https://..."
               />
 
@@ -655,31 +676,31 @@ export default function App() {
               <textarea
                 rows={2}
                 value={adminSettings?.welcome_message || ""}
-                onChange={(e) => setAdminSettings({ ...adminSettings, welcome_message: e.target.value })}
+                onChange={(e) => updateAdminSetting("welcome_message", e.target.value)}
               />
 
               <label>QR Title: Listing</label>
                 <input
                 value={adminSettings?.qr_listing_title || ""}
-                onChange={(e) => setAdminSettings({ ...adminSettings, qr_listing_title: e.target.value })}
+                onChange={(e) => updateAdminSetting("qr_listing_title", e.target.value)}
                 />
 
                 <label>QR Title: Feature Sheet</label>
                 <input
                 value={adminSettings?.qr_feature_title || ""}
-                onChange={(e) => setAdminSettings({ ...adminSettings, qr_feature_title: e.target.value })}
+                onChange={(e) => updateAdminSetting("qr_feature_title", e.target.value)}
                 />
 
                 <label>QR Title: Similar Homes</label>
                 <input
                 value={adminSettings?.qr_similar_title || ""}
-                onChange={(e) => setAdminSettings({ ...adminSettings, qr_similar_title: e.target.value })}
+                onChange={(e) => updateAdminSetting("qr_similar_title", e.target.value)}
                 />
 
                 <label>QR Title: Book Showing</label>
                 <input
                 value={adminSettings?.qr_book_showing_title || ""}
-                onChange={(e) => setAdminSettings({ ...adminSettings, qr_book_showing_title: e.target.value })}
+                onChange={(e) => updateAdminSetting("qr_book_showing_title", e.target.value)}
                 />
 
                 <label>Auto Reset Time (seconds)</label>
@@ -688,12 +709,7 @@ export default function App() {
                 min="15"
                 max="300"
                 value={adminSettings?.kiosk_reset_seconds ?? 90}
-                onChange={(e) =>
-                    setAdminSettings({
-                    ...adminSettings,
-                    kiosk_reset_seconds: e.target.value
-                    })
-                }
+                onChange={(e) => updateAdminSetting("kiosk_reset_seconds", e.target.value)}
                 />
                 <div className="small muted" style={{ marginTop: 4 }}>
                 Recommended: 90 seconds
@@ -702,25 +718,25 @@ export default function App() {
               <label>Listing URL</label>
               <input
                 value={adminSettings?.listing_url || ""}
-                onChange={(e) => setAdminSettings({ ...adminSettings, listing_url: e.target.value })}
+                onChange={(e) => updateAdminSetting("listing_url", e.target.value)}
               />
 
               <label>Feature Sheet URL</label>
               <input
                 value={adminSettings?.feature_sheet_url || ""}
-                onChange={(e) => setAdminSettings({ ...adminSettings, feature_sheet_url: e.target.value })}
+                onChange={(e) => updateAdminSetting("feature_sheet_url", e.target.value)}
               />
 
               <label>Similar Homes URL</label>
               <input
                 value={adminSettings?.similar_homes_url || ""}
-                onChange={(e) => setAdminSettings({ ...adminSettings, similar_homes_url: e.target.value })}
+                onChange={(e) => updateAdminSetting("similar_homes_url", e.target.value)}
               />
 
               <label>Book Showing URL</label>
               <input
                 value={adminSettings?.book_showing_url || ""}
-                onChange={(e) => setAdminSettings({ ...adminSettings, book_showing_url: e.target.value })}
+                onChange={(e) => updateAdminSetting("book_showing_url", e.target.value)}
               />
 
               <div className="grid two">
@@ -729,7 +745,7 @@ export default function App() {
                   <input
                     type="color"
                     value={adminSettings?.brand_color || "#0f172a"}
-                    onChange={(e) => setAdminSettings({ ...adminSettings, brand_color: e.target.value })}
+                    onChange={(e) => updateAdminSetting("brand_color", e.target.value)}
                   />
                 </div>
 
@@ -738,7 +754,7 @@ export default function App() {
                   <input
                     type="color"
                     value={adminSettings?.accent_color || "#2563eb"}
-                    onChange={(e) => setAdminSettings({ ...adminSettings, accent_color: e.target.value })}
+                    onChange={(e) => updateAdminSetting("accent_color", e.target.value)}
                   />
                 </div>
               </div>
@@ -746,20 +762,20 @@ export default function App() {
               <label>Areas (comma-separated)</label>
               <input
                 value={adminSettings?.areas_options_text || ""}
-                onChange={(e) => setAdminSettings({ ...adminSettings, areas_options_text: e.target.value })}
+                onChange={(e) => updateAdminSetting("areas_options_text", e.target.value)}
               />
 
               <label>Price Ranges (value|Label, comma-separated)</label>
               <input
                 value={adminSettings?.price_ranges_text || ""}
-                onChange={(e) => setAdminSettings({ ...adminSettings, price_ranges_text: e.target.value })}
+                onChange={(e) => updateAdminSetting("price_ranges_text", e.target.value)}
               />
 
               <label className="check">
                 <input
                   type="checkbox"
                   checked={!!adminSettings?.require_consent}
-                  onChange={(e) => setAdminSettings({ ...adminSettings, require_consent: e.target.checked })}
+                  onChange={(e) => updateAdminSetting("require_consent", e.target.checked)}
                 />
                 <span>Require consent</span>
               </label>
@@ -768,7 +784,7 @@ export default function App() {
                 <input
                   type="checkbox"
                   checked={!!adminSettings?.ask_financing_question}
-                  onChange={(e) => setAdminSettings({ ...adminSettings, ask_financing_question: e.target.checked })}
+                  onChange={(e) => updateAdminSetting("ask_financing_question", e.target.checked)}
                 />
                 <span>Show pre-approval question</span>
               </label>
@@ -777,7 +793,7 @@ export default function App() {
                 <button className="btn btn-primary" onClick={saveAdminSettings}>
                   Save
                 </button>
-                <span className="small">{adminMsg}</span>
+                 <span className="small">{isSettingsDirty ? "Unsaved changes" : adminMsg}</span>
               </div>
             </div>
 
